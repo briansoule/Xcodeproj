@@ -1,4 +1,6 @@
 module Xcodeproj
+  require 'pathname'
+
   class PlainInformative < StandardError
   end
 
@@ -21,5 +23,3 @@ module Xcodeproj
   autoload :XCScheme,         'xcodeproj/scheme'
   autoload :XcodebuildHelper, 'xcodeproj/xcodebuild_helper'
 end
-
-require 'xcodeproj/ext'

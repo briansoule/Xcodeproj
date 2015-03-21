@@ -2,7 +2,6 @@ require File.expand_path('../../../spec_helper', __FILE__)
 
 module ProjectSpecs
   describe AbstractBuildPhase do
-
     before do
       # Can't initialize AbstractBuildPhase directly
       @build_phase = @project.new(PBXCopyFilesBuildPhase)
@@ -11,7 +10,6 @@ module ProjectSpecs
     #----------------------------------------#
 
     describe '#add_file_reference' do
-
       it 'can add a file reference to its build files' do
         file = @project.new_file('some/file')
         @build_phase.add_file_reference(file)
@@ -24,7 +22,6 @@ module ProjectSpecs
         @build_phase.add_file_reference(file, true)
         @build_phase.files_references.should == [file]
       end
-
     end
 
     #----------------------------------------#
@@ -111,7 +108,6 @@ module ProjectSpecs
   end
 
   describe PBXCopyFilesBuildPhase do
-
     before do
       @build_phase = @project.new(PBXCopyFilesBuildPhase)
     end
@@ -127,10 +123,31 @@ module ProjectSpecs
     it 'defaults the dstSubfolderSpec to the resources folder' do
       @build_phase.dst_subfolder_spec.should == '7'
     end
+
+    describe '#symbol_dst_subfolder_spec' do
+      it 'returns the matching value' do
+        @build_phase.symbol_dst_subfolder_spec.should == :resources
+      end
+
+      it 'returns nil if the key is unknown' do
+        @build_phase.dst_subfolder_spec = '42'
+        @build_phase.symbol_dst_subfolder_spec.should.be.nil
+      end
+    end
+
+    describe '#symbol_dst_subfolder_spec=' do
+      it 'accepts valid values' do
+        @build_phase.symbol_dst_subfolder_spec = :frameworks
+        @build_phase.symbol_dst_subfolder_spec.should == :frameworks
+      end
+
+      it 'raises if an invalid value is set by #symbol_dst_subfolder_spec=' do
+        lambda { @build_phase.symbol_dst_subfolder_spec = :watch_faces }.should.raise?(StandardError)
+      end
+    end
   end
 
   describe PBXShellScriptBuildPhase do
-
     before do
       @build_phase = @project.new(PBXShellScriptBuildPhase)
     end

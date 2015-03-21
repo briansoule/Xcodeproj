@@ -1,10 +1,9 @@
 require 'fileutils'
-require 'pathname'
 require 'securerandom'
 
 require 'xcodeproj/project/object'
 require 'xcodeproj/project/project_helper'
-require 'xcodeproj/project/xcproj_helper'
+require 'xcodeproj/plist_helper'
 
 module Xcodeproj
   # This class represents a Xcode project document.
@@ -114,13 +113,38 @@ module Xcodeproj
     #
     attr_reader :root_object
 
+    # A fast way to see if two {Project} instances refer to the same projects on
+    # disk. Use this over {#eql?} when you do not need to compare the full data.
+    #
+    # This shallow comparison was chosen as the (common) `==` implementation,
+    # because it was too easy to introduce changes into the Xcodeproj code-base
+    # that were slower than O(1).
+    #
+    # @return [Boolean] whether or not the two `Project` instances refer to the
+    #         same projects on disk, determined solely by {#path} and
+    #         `root_object.uuid` equality.
+    #
+    # @todo If ever needed, we could also compare `uuids.sort` instead.
+    #
+    def ==(other)
+      other && path == other.path && root_object.uuid == other.root_object.uuid
+    end
+
     # Compares the project to another one, or to a plist representation.
+    #
+    # @note This operation can be extremely expensive, because it converts a
+    #       `Project` instance to a hash, and should _only_ ever be used to
+    #       determine wether or not the data contents of two `Project` instances
+    #       are completely equal.
+    #
+    #       To simply determine wether or not two {Project} instances refer to
+    #       the same projects on disk, use the {#==} method instead.
     #
     # @param  [#to_hash] other the object to compare.
     #
     # @return [Boolean] whether the project is equivalent to the given object.
     #
-    def ==(other)
+    def eql?(other)
       other.respond_to?(:to_hash) && to_hash == other.to_hash
     end
 
@@ -129,15 +153,6 @@ module Xcodeproj
     end
 
     alias_method :inspect, :to_s
-
-    # @return [Bool] Whether the xcproj conversion should be disabled. The
-    #         conversion can be disable also via the
-    #         `XCODEPROJ_DISABLE_XCPROJ` environment variable.
-    #
-    attr_accessor :disable_xcproj
-    def disable_xcproj?
-      @disable_xcproj || ENV['XCODEPROJ_DISABLE_XCPROJ']
-    end
 
     public
 
@@ -173,9 +188,8 @@ module Xcodeproj
     def initialize_from_file
       pbxproj_path = path + 'project.pbxproj'
       plist = Xcodeproj.read_plist(pbxproj_path.to_s)
-      root_object_uuid = plist['rootObject']
       root_object.remove_referrer(self) if root_object
-      @root_object = new_from_plist(root_object_uuid, plist['objects'], self)
+      @root_object = new_from_plist(plist['rootObject'], plist['objects'], self)
       @archive_version =  plist['archiveVersion']
       @object_version  =  plist['objectVersion']
       @classes         =  plist['classes']
@@ -304,7 +318,6 @@ module Xcodeproj
       file = File.join(save_path, 'project.pbxproj')
       Xcodeproj.write_plist(to_hash, file)
       fix_encoding(file)
-      XCProjHelper.touch(save_path) unless disable_xcproj?
     end
 
     # Simple workaround to escape characters which are outside of ASCII
@@ -575,8 +588,8 @@ module Xcodeproj
     # Frameworks phase.
     #
     # @param  [Symbol] type
-    #         the type of target. Can be `:application`, `:dynamic_library` or
-    #         `:static_library`.
+    #         the type of target. Can be `:application`, `:framework`,
+    #         `:dynamic_library` or `:static_library`.
     #
     # @param  [String] name
     #         the name of the target product.
@@ -587,11 +600,14 @@ module Xcodeproj
     # @param  [String] deployment_target
     #         the deployment target for the platform.
     #
+    # @param  [Symbol] language
+    #         the primary language of the target, can be `:objc` or `:swift`.
+    #
     # @return [PBXNativeTarget] the target.
     #
-    def new_target(type, name, platform, deployment_target = nil, product_group = nil)
+    def new_target(type, name, platform, deployment_target = nil, product_group = nil, language = nil)
       product_group ||= products_group
-      ProjectHelper.new_target(self, type, name, platform, deployment_target, product_group)
+      ProjectHelper.new_target(self, type, name, platform, deployment_target, product_group, language)
     end
 
     # Creates a new resource bundles target and adds it to the project.

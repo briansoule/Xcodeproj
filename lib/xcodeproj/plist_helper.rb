@@ -23,22 +23,25 @@ module Xcodeproj
       # @param  [#to_s] path
       #         The path of the file.
       #
-      def write(hash, path)
-        unless hash.is_a?(Hash)
-          if hash.respond_to?(:to_hash)
-            hash = hash.to_hash
-          else
-            raise TypeError, "The given `#{hash.inspect}` must be a hash or " \
-                             "respond to #to_hash'."
-          end
+      def write(possible_hash, path)
+        if possible_hash.respond_to?(:to_hash)
+          hash = possible_hash.to_hash
+        else
+          raise TypeError, "The given `#{possible_hash.inspect}` must respond " \
+                            "to #to_hash'."
         end
 
         unless path.is_a?(String) || path.is_a?(Pathname)
           raise TypeError, "The given `#{path}` must be a string or 'pathname'."
         end
         path = path.to_s
+        raise IOError, 'Empty path.' if path == ''
 
-        CoreFoundation.RubyHashPropertyListWrite(hash, path)
+        if DevToolsCore.load_xcode_frameworks && path.end_with?('pbxproj')
+          ruby_hash_write_xcode(hash, path)
+        else
+          CoreFoundation.RubyHashPropertyListWrite(hash, path)
+        end
       end
 
       # @return [Hash] Returns the native objects loaded from a property list
@@ -50,47 +53,53 @@ module Xcodeproj
       def read(path)
         path = path.to_s
         unless File.exist?(path)
-          raise ArgumentError, "The plist file at path `#{path}` doesn't exist."
+          raise Informative, "The plist file at path `#{path}` doesn't exist."
+        end
+        if file_in_conflict?(path)
+          raise Informative, "The file `#{path}` is in a merge conflict."
         end
         CoreFoundation.RubyHashPropertyListRead(path)
       end
-    end
-  end
-end
 
-# Define compatibility with older Fiddle implementation in Ruby 1.9.3.
-#
-# @todo: Soon we will drop support for any Ruby < 2 and this should be removed.
-#
-# @!visibility private
-#
-module Fiddle
-  unless defined?(NULL)
-    require 'dl'
-    NULL = DL::NULL
-  end
+      private
 
-  unless defined?(SIZEOF_INTPTR_T)
-    require 'dl'
-    SIZEOF_INTPTR_T = DL::SIZEOF_VOIDP
-  end
+      # @return [Bool] Checks whether there are merge conflicts in the file.
+      #
+      # @param  [#to_s] path
+      #         The path of the file.
+      #
+      def file_in_conflict?(path)
+        file = File.open(path)
+        file.each_line.any? { |l| l.match(/^(<|=|>){7}/) }
+      ensure
+        file.close
+      end
 
-  unless defined?(Handle)
-    require 'dl'
-    Handle = DL::Handle
-  end
+      # Serializes a hash as an ASCII plist, using Xcode.
+      #
+      # @param  [Hash] hash
+      #         The hash to store.
+      #
+      # @param  [String] path
+      #         The path of the file.
+      #
+      def ruby_hash_write_xcode(hash, path)
+        path = File.expand_path(path)
+        success = true
 
-  unless respond_to?(:dlopen)
-    require 'dl'
-    def self.dlopen(library)
-      DL.dlopen(library)
-    end
-  end
+        begin
+          plist = DevToolsCore::CFDictionary.new(CoreFoundation.RubyHashToCFDictionary(hash))
+          data = DevToolsCore::NSData.new(plist.plistDescriptionUTF8Data)
+          success &= data.writeToFileAtomically(path)
 
-  class Function
-    unless public_method_defined?(:to_i)
-      def to_i
-        @ptr.to_i
+          project = DevToolsCore::PBXProject.new(path)
+          success &= project.writeToFileSystemProjectFile
+          project.close
+        rescue Fiddle::DLError
+          success = false
+        end
+
+        CoreFoundation.RubyHashPropertyListWrite(hash, path) unless success
       end
     end
   end
@@ -194,6 +203,15 @@ module CoreFoundation
   TRUE = 1
   FALSE = 0
 
+  SINT64_MAX = 2**63 - 1
+  SINT64_MIN = -SINT64_MAX - 1
+
+  SIZEOF_SINT64 = 8
+  SIZEOF_FLOAT64 = 8
+
+  SINT64_PACK_TEMPLATE = 'q'
+  FLOAT64_PACK_TEMPLATE = 'd'
+
   CFTypeRef = VoidPointer
   CFTypeRefPointer = VoidPointer
   CFIndex = Fiddle::TYPE_LONG
@@ -209,6 +227,10 @@ module CoreFoundation
 
   CFStringEncoding = UInt32
   KCFStringEncodingUTF8 = 0x08000100
+
+  CFNumberType = Fiddle::TYPE_INT
+  KCFNumberSInt64Type = 4
+  KCFNumberFloat64Type = 6
 
   # rubocop:enable Style/ConstantName
 
@@ -229,7 +251,7 @@ module CoreFoundation
     @CFRelease ||= Fiddle::Function.new(image['CFRelease'], [CFTypeRef], Void)
   end
 
-  def self.extern(symbol, parameter_types, return_type)
+  def self.extern_image(image, symbol, parameter_types, return_type)
     symbol = symbol.to_s
     create_function = symbol.include?('Create')
     function_cache_key = "@__#{symbol}__"
@@ -253,6 +275,10 @@ module CoreFoundation
     end
   end
 
+  def self.extern(symbol, parameter_types, return_type)
+    extern_image(image, symbol, parameter_types, return_type)
+  end
+
   public
 
   # @!group CoreFoundation function definitions
@@ -268,6 +294,7 @@ module CoreFoundation
   extern :CFStringGetTypeID, [], CFTypeID
   extern :CFArrayGetTypeID, [], CFTypeID
   extern :CFBooleanGetTypeID, [], CFTypeID
+  extern :CFNumberGetTypeID, [], CFTypeID
 
   # CFStream
   extern :CFWriteStreamCreateWithFile, [CFTypeRef, CFTypeRef], CFTypeRef
@@ -306,6 +333,11 @@ module CoreFoundation
   # CFBoolean
   extern :CFBooleanGetValue, [CFTypeRef], Boolean
 
+  # CFNumber
+  extern :CFNumberIsFloatType, [CFTypeRef], Boolean
+  extern :CFNumberGetValue, [CFTypeRef, CFNumberType, VoidPointer], Boolean
+  extern :CFNumberCreate,  [CFTypeRef, CFNumberType, VoidPointer], CFTypeRef
+
   # @!group Custom convenience functions
   #---------------------------------------------------------------------------#
 
@@ -332,10 +364,13 @@ module CoreFoundation
   # This pointer will assign `CFRelease` as the free function when
   # dereferencing the pointer.
   #
+  # @note This means that the object will *not* be released if it's not
+  #       dereferenced, but that would be a leak anyways, so be sure to do so.
+  #
   def self.CFTypeRefPointer
     pointer = Fiddle::Pointer.malloc(Fiddle::SIZEOF_INTPTR_T, free_function)
     def pointer.ptr
-      CFAutoRelease(super)
+      ::CoreFoundation.CFAutoRelease(super)
     end
     pointer
   end
@@ -371,6 +406,8 @@ module CoreFoundation
       CFArrayToRubyArray(cf_type_reference)
     when CFBooleanGetTypeID()
       CFBooleanToRubyBoolean(cf_type_reference)
+    when CFNumberGetTypeID()
+      CFNumberToRubyNumber(cf_type_reference)
     else
       description = CFStringToRubyString(CFCopyDescription(cf_type_reference))
       raise TypeError, "Unknown type: #{description}"
@@ -411,6 +448,21 @@ module CoreFoundation
     CFBooleanGetValue(boolean) == TRUE
   end
 
+  def self.CFNumberToRubyNumber(number)
+    if CFNumberIsFloatType(number) == FALSE
+      value_type = KCFNumberSInt64Type
+      pack_template = SINT64_PACK_TEMPLATE
+      size = SIZEOF_SINT64
+    else
+      value_type = KCFNumberFloat64Type
+      pack_template = FLOAT64_PACK_TEMPLATE
+      size = SIZEOF_FLOAT64
+    end
+    ptr = Fiddle::Pointer.malloc(size)
+    CFNumberGetValue(number, value_type, ptr)
+    ptr.to_str.unpack(pack_template).first
+  end
+
   # @!group Ruby value to CFTypeRef conversion
   #---------------------------------------------------------------------------#
 
@@ -424,6 +476,8 @@ module CoreFoundation
                RubyArrayToCFArray(value)
              when true, false
                RubyBooleanToCFBoolean(value)
+             when Numeric
+               RubyNumberToCFNumber(value)
              else
                RubyStringToCFString(value.to_s)
              end
@@ -462,8 +516,194 @@ module CoreFoundation
     result
   end
 
+  def self.RubyNumberToCFNumber(value)
+    case value
+    when Float
+      value_type = KCFNumberFloat64Type
+      pack_template = FLOAT64_PACK_TEMPLATE
+    when SINT64_MIN..SINT64_MAX
+      value_type = KCFNumberSInt64Type
+      pack_template = SINT64_PACK_TEMPLATE
+    else # the value is too big to be stored in a CFNumber so store it as a CFString
+      return RubyStringToCFString(value.to_s)
+    end
+    ptr = Fiddle::Pointer.to_ptr([value].pack(pack_template))
+    CFNumberCreate(NULL, value_type, ptr)
+  end
+
   def self.RubyBooleanToCFBoolean(value)
     value ? CFBooleanTrue() : CFBooleanFalse()
+  end
+
+  # rubocop:enable Style/MethodName
+  # rubocop:enable Style/VariableName
+end
+
+module DevToolsCore
+  def self.silence_stderr
+    begin
+      orig_stderr = $stderr.clone
+      $stderr.reopen File.new('/dev/null', 'w')
+      retval = yield
+    ensure
+      $stderr.reopen orig_stderr
+    end
+    retval
+  end
+
+  # rubocop:disable Style/MethodName
+  # rubocop:disable Style/VariableName
+
+  class NSObject
+    private
+
+    def self.objc_class
+      @objc_class ||= CoreFoundation.objc_getClass(name.split('::').last)
+    end
+
+    def self.image
+      @image ||= Fiddle::Handle.new
+    end
+
+    def self.extern(symbol, parameter_types, return_type)
+      CoreFoundation.extern_image(image, symbol, parameter_types, return_type)
+    end
+
+    def self.objc_msgSend(args, return_type = CoreFoundation::VoidPointer)
+      arguments = [CoreFoundation::VoidPointer, CoreFoundation::VoidPointer] + args
+
+      Fiddle::Function.new(image['objc_msgSend'], arguments, return_type)
+    end
+
+    def self.respondsToSelector(instance, sel)
+      selector = CoreFoundation.NSSelectorFromString(CoreFoundation.RubyStringToCFString(sel))
+      respondsToSelector = objc_msgSend([CoreFoundation::CharPointer], CoreFoundation::Boolean)
+      result = respondsToSelector.call(
+        instance,
+        CoreFoundation.NSSelectorFromString(CoreFoundation.RubyStringToCFString('respondsToSelector:')),
+        selector)
+      result == CoreFoundation::TRUE ? true : false
+    end
+
+    Class = CoreFoundation::VoidPointer
+    ID = CoreFoundation::VoidPointer
+    SEL = CoreFoundation::VoidPointer
+
+    extern :NSSelectorFromString, [CoreFoundation::CFTypeRef], SEL
+
+    extern :objc_getClass, [CoreFoundation::CharPointer], Class
+    extern :class_getName, [Class], CoreFoundation::CharPointer
+  end
+
+  XCODE_PATH = Pathname.new(`xcrun xcode-select -p`.strip).dirname
+
+  def self.load_xcode_framework(framework)
+    Fiddle.dlopen(XCODE_PATH.join(framework).to_s)
+    rescue Fiddle::DLError
+      nil
+  end
+
+  def self.load_xcode_frameworks
+    load_xcode_framework('SharedFrameworks/DVTFoundation.framework/DVTFoundation')
+    load_xcode_framework('SharedFrameworks/DVTSourceControl.framework/DVTSourceControl')
+    load_xcode_framework('SharedFrameworks/CSServiceClient.framework/CSServiceClient')
+    load_xcode_framework('Frameworks/IDEFoundation.framework/IDEFoundation')
+    load_xcode_framework('PlugIns/Xcode3Core.ideplugin/Contents/MacOS/Xcode3Core')
+  end
+
+  class CFDictionary < NSObject
+    public
+
+    def initialize(dictionary)
+      @dictionary = dictionary
+    end
+
+    def plistDescriptionUTF8Data
+      selector = 'plistDescriptionUTF8Data'
+      return nil unless NSObject.respondsToSelector(@dictionary, selector)
+
+      plistDescriptionUTF8Data = CFDictionary.objc_msgSend([])
+      plistDescriptionUTF8Data.call(
+        @dictionary,
+        CoreFoundation.NSSelectorFromString(CoreFoundation.RubyStringToCFString(selector)))
+    end
+
+    def self.image
+      @image ||= DevToolsCore.load_xcode_frameworks
+    end
+  end
+
+  class NSData < NSObject
+    public
+
+    def initialize(data)
+      @data = data
+    end
+
+    def writeToFileAtomically(path)
+      selector = 'writeToFile:atomically:'
+      return false unless NSObject.respondsToSelector(@data, selector)
+
+      writeToFileAtomically = NSData.objc_msgSend([CoreFoundation::VoidPointer, CoreFoundation::Boolean], CoreFoundation::Boolean)
+      result = writeToFileAtomically.call(
+        @data,
+        CoreFoundation.NSSelectorFromString(CoreFoundation.RubyStringToCFString(selector)),
+        CoreFoundation.RubyStringToCFString(path),
+        1)
+      result == CoreFoundation::TRUE ? true : false
+    end
+  end
+
+  class PBXProject < NSObject
+    public
+
+    def initialize(path)
+      DevToolsCore.silence_stderr do
+        CoreFoundation.IDEInitialize(1, CoreFoundation::NULL)
+        CoreFoundation.XCInitializeCoreIfNeeded(1)
+      end
+
+      selector = 'projectWithFile:'
+
+      if NSObject.respondsToSelector(PBXProject.objc_class, selector)
+        projectWithFile = PBXProject.objc_msgSend([CoreFoundation::VoidPointer])
+        @project = projectWithFile.call(
+          PBXProject.objc_class,
+          CoreFoundation.NSSelectorFromString(CoreFoundation.RubyStringToCFString(selector)),
+          CoreFoundation.RubyStringToCFString(path))
+      end
+    end
+
+    def close
+      selector = 'close'
+      return unless NSObject.respondsToSelector(@project, selector)
+
+      close = PBXProject.objc_msgSend([], CoreFoundation::Void)
+      close.call(@project, CoreFoundation.NSSelectorFromString(CoreFoundation.RubyStringToCFString(selector)))
+    end
+
+    def writeToFileSystemProjectFile
+      selector = 'writeToFileSystemProjectFile:userFile:checkNeedsRevert:'
+      return unless NSObject.respondsToSelector(@project, selector)
+
+      writeToFile = PBXProject.objc_msgSend([CoreFoundation::Boolean, CoreFoundation::Boolean, CoreFoundation::Boolean], CoreFoundation::Boolean)
+      result = writeToFile.call(
+        @project,
+        CoreFoundation.NSSelectorFromString(CoreFoundation.RubyStringToCFString(selector)),
+        1,
+        0,
+        1)
+      result == CoreFoundation::TRUE ? true : false
+    end
+
+    private
+
+    def self.image
+      @image ||= DevToolsCore.load_xcode_frameworks
+    end
+
+    extern :IDEInitialize, [CoreFoundation::Boolean, ID], CoreFoundation::Void
+    extern :XCInitializeCoreIfNeeded, [CoreFoundation::Boolean], CoreFoundation::Void
   end
 
   # rubocop:enable Style/MethodName

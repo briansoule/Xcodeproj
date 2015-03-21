@@ -4,11 +4,9 @@ require File.expand_path('../spec_helper', __FILE__)
 
 module ProjectSpecs
   describe Xcodeproj::Project do
-
     #-------------------------------------------------------------------------#
 
     describe 'In general' do
-
       it 'return the objects by UUID hash' do
         @project.objects_by_uuid.should.not.be.nil
       end
@@ -21,7 +19,6 @@ module ProjectSpecs
     #-------------------------------------------------------------------------#
 
     describe 'Initialization from scratch' do
-
       it 'expands the provided path' do
         project = Xcodeproj::Project.new('foo.xcodeproj')
         project.path.should == Pathname.new('./foo.xcodeproj').expand_path
@@ -72,32 +69,11 @@ module ProjectSpecs
       it 'adds the frameworks group' do
         @project['Frameworks'].class.should == PBXGroup
       end
-
-      it 'it should have DNS_BLOCK_ASSERTIONS=1 flag in Release configuration' do
-        target = @project.new_target(:static_library, 'Pods', :ios)
-        target.build_configuration_list.should.not.be.nil
-
-        # Release
-        build_settings = target.build_configuration_list.build_settings('Release')
-        build_settings['OTHER_CFLAGS'].should.include('-DNS_BLOCK_ASSERTIONS=1')
-        build_settings['OTHER_CPLUSPLUSFLAGS'].should.include('-DNS_BLOCK_ASSERTIONS=1')
-
-        # Debug
-        build_settings = target.build_configuration_list.build_settings('Debug')
-        unless build_settings['OTHER_CFLAGS'].nil?
-          build_settings['OTHER_CFLAGS'].should.not.include('-DNS_BLOCK_ASSERTIONS=1')
-        end
-        unless build_settings['OTHER_CPLUSPLUSFLAGS'].nil?
-          build_settings['OTHER_CPLUSPLUSFLAGS'].should.not.include('-DNS_BLOCK_ASSERTIONS=1')
-        end
-
-      end
     end
 
     #-------------------------------------------------------------------------#
 
     describe 'Initialization from a file' do
-
       before do
         @dir = Pathname(fixture_path('Sample Project'))
         @path = @dir + 'Cocoa Application.xcodeproj'
@@ -140,32 +116,37 @@ module ProjectSpecs
         attrb.default_value.should == '1'
         obj.to_hash.should == expected
       end
+
+      it 'recognizes merge conflicts' do
+        @path = @dir + 'ProjectInMergeConflict/ProjectInMergeConflict.xcodeproj'
+        lambda do
+          Xcodeproj::Project.open(@path)
+        end.should.raise(Xcodeproj::Informative)
+      end
     end
 
     #-------------------------------------------------------------------------#
 
     describe '#Save' do
-
       extend SpecHelper::TemporaryDirectory
 
       before do
         @dir = Pathname(fixture_path('Sample Project'))
         @path = @dir + 'Cocoa Application.xcodeproj'
         @project = Xcodeproj::Project.open(@path)
-        @project.disable_xcproj = true
         @tmp_path = temporary_directory + 'Pods.xcodeproj'
       end
 
       it 'saves the project to the default path' do
         @project.save(@tmp_path)
         new_instance = Xcodeproj::Project.open(@path)
-        new_instance.should == @project
+        new_instance.should.eql @project
       end
 
       it 'saves the project to the given path' do
         @project.save(@tmp_path)
         new_instance = Xcodeproj::Project.open(@tmp_path)
-        new_instance.should == @project
+        new_instance.should.eql @project
       end
 
       it 'can save a project after removing a subproject' do
@@ -200,13 +181,14 @@ module ProjectSpecs
 
       it 'can open a project and save it without altering any information' do
         plist = Xcodeproj.read_plist(@path + 'project.pbxproj')
-        @project.disable_xcproj = true
         @project.save(@tmp_path)
         project_file = (temporary_directory + 'Pods.xcodeproj/project.pbxproj')
         Xcodeproj.read_plist(project_file).should == plist
       end
 
       it 'escapes non ASCII characters in the project' do
+        DevToolsCore.stubs(:load_xcode_frameworks).returns(nil)
+
         file_ref = @project.new_file('わくわく')
         file_ref.name = 'わくわく'
         file_ref = @project.new_file('Cédric')
@@ -218,32 +200,11 @@ module ProjectSpecs
         contents.should.not.include('Cédric')
         contents.should.include('C&#233;dric')
       end
-
-      it 'uses xcproj to convert the project to match Xcode output' do
-        @project.disable_xcproj = false
-        Xcodeproj::Project::XCProjHelper.expects(:touch).with(@tmp_path)
-        @project.save(@tmp_path)
-      end
-
-      it 'skips the xcproj to convert the project to match Xcode output' do
-        @project.disable_xcproj = true
-        Xcodeproj::Project::XCProjHelper.expects(:touch).never
-        @project.save(@tmp_path)
-      end
-
-      it 'skips the xcproj touch if specified via an environment variable' do
-        @project.disable_xcproj = false
-        ENV['XCODEPROJ_DISABLE_XCPROJ'] = 'TRUE'
-        Xcodeproj::Project::XCProjHelper.expects(:touch).never
-        @project.save(@tmp_path)
-        ENV['XCODEPROJ_DISABLE_XCPROJ'] = nil
-      end
     end
 
     #-------------------------------------------------------------------------#
 
     describe 'Object creation' do
-
       it 'creates a new object' do
         @project.new(PBXFileReference).class.should == PBXFileReference
       end
@@ -423,7 +384,6 @@ module ProjectSpecs
     #-------------------------------------------------------------------------#
 
     describe 'Helpers for creating new objects' do
-
       it 'adds a new group' do
         group = @project.new_group('NewGroup')
         group.isa.should == 'PBXGroup'
@@ -455,7 +415,6 @@ module ProjectSpecs
       #----------------------------------------#
 
       describe '#add_build_configuration' do
-
         it 'adds a new build configuration' do
           @project.add_build_configuration('App Store', :release)
           @project.build_configurations.map(&:name).sort.should == ['App Store', 'Debug', 'Release']
@@ -488,7 +447,6 @@ module ProjectSpecs
         @project.targets.map(&:name).should == %w(A B)
         @project.build_configurations.map(&:name).should == %w(A B Debug Release)
       end
-
     end
 
     #-------------------------------------------------------------------------#
@@ -505,7 +463,6 @@ module ProjectSpecs
       end
 
       describe '#recreate_user_schemes' do
-
         it 'can recreate the user schemes' do
           sut = Xcodeproj::Project.new(SpecHelper.temporary_directory + 'Pods.xcodeproj')
           sut.new_target(:application, 'Xcode', :ios)
@@ -529,6 +486,5 @@ module ProjectSpecs
     end
 
     #-------------------------------------------------------------------------#
-
   end
 end

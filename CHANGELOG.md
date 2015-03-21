@@ -1,5 +1,195 @@
 # Xcodeproj Changelog
 
+## 0.23.0
+
+##### Enhancements
+
+* `ProjectHelper`: Allow to specify the primary language of the target.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#244](https://github.com/CocoaPods/Xcodeproj/pull/244)
+
+#### Bug Fixes
+
+* Depend on pathname so components such as PlistHelper can be used directly.  
+  [#243](https://github.com/CocoaPods/Xcodeproj/issues/243)
+  [Vincent Isambart](https://github.com/vincentisambart)
+  [Kyle Fuller](https://github.com/kylef)
+
+
+## 0.22.0
+
+##### Enhancements
+
+* Use the `DVTFoundation.framework` of Xcode to serialize projects as ASCII
+  plists. This makes the optional installation of `xcproj` unnecessary to
+  retain the project file format.  
+  [Boris Bügling](https://github.com/neonichu)
+  [Xcodeproj#199](https://github.com/CocoaPods/Xcodeproj/issues/199)
+  [Xcodeproj#203](https://github.com/CocoaPods/Xcodeproj/issues/203)
+
+* `PlistHelper`: Add support for plist files with numbers (`real`, `integer`).  
+  [Vincent Isambart](https://github.com/vincentisambart)
+
+#### Bug Fixes
+
+* Use the correct value for `COPY_PHASE_STRIP` when creating build
+  configurations.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [#3062](https://github.com/CocoaPods/CocoaPods/issues/3062)
+
+* handle .H header files as headers and remove from the compile
+  sources build phase.  
+  [banjun](https://github.com/banjun)
+  [Xcodeproj#239](https://github.com/CocoaPods/Xcodeproj/pull/239)
+
+## 0.21.2
+
+##### Bug Fixes
+
+* Include common build settings on custom build configurations.  
+  [Kyle Fuller](https://github.com/kylef)
+
+## 0.21.1
+
+##### Bug Fixes
+
+* `Project` The `new_target` method now creates build configurations
+  corresponding to all configurations of the project, not just Debug
+  and Release.  
+  [Boris Bügling](https://github.com/neonichu)
+  [Xcodeproj#228](https://github.com/CocoaPods/Xcodeproj/issues/228)
+  [CocoaPods#3055](https://github.com/CocoaPods/CocoaPods/issues/3055)
+
+* Use `#sub` instead of `#gsub` to remove spaces near first `=` when
+  generating scheme files.  
+  [Almas Sapargali](http://github.com/almassapargali)
+  [Xcodeproj#225](https://github.com/CocoaPods/Xcodeproj/pull/225)
+
+
+## 0.21.0
+
+##### Breaking
+
+* `Constants` The build settings match now those from Xcode 6.1.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Kyle Fuller](https://github.com/kylef)
+  [Xcodeproj#166](https://github.com/CocoaPods/Xcodeproj/pull/166)
+
+
+##### Enhancements
+
+* `ProjectHelper` The `::common_build_settings` method supports now a new
+  parameter `language` to select the language used in the target. Acceptable
+  options are either `:objc` or `:swift`.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#166](https://github.com/CocoaPods/Xcodeproj/pull/166)
+
+* `ProjectHelper` Supports to create framework targets for iOS & OSX with the
+  correct build settings.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#166](https://github.com/CocoaPods/Xcodeproj/pull/164)
+
+* `Commands` Xcodeproj CLI has a new command `config-dump`, which allows to
+  read the build settings from all configurations of all targets of a given
+  Xcode project and serialize them to .xcconfig files.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#166](https://github.com/CocoaPods/Xcodeproj/pull/166)
+
+
+##### Development Enhancements
+
+* `Rakefile` Brings a set of new tasks to interactively generate fixture targets
+  for all target configurations supported by Xcode to update the xcconfig
+  fixtures used for the new specs, which check the build settings constants.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#166](https://github.com/CocoaPods/Xcodeproj/pull/166)
+
+
+## 0.20.2
+
+##### Bug Fixes
+
+* `FileReference` Fixes an issue that caused project names containing
+  `"`, `'`, `&`, `<` or `>` to produce a workspace that Xcode could not open.  
+  [Hugo Tunius](https://github.com/K0nserv)
+  [CocoaPods#2807](https://github.com/CocoaPods/CocoaPods/issues/2807)
+
+
+## 0.20.1
+
+###### Minor Enhancements
+
+* `Project` Make `#==` a fast shallow comparison method, which operates only on
+  its root object UUID and its path on disk. For full data comparisons, use the
+  `#eql?` method instead.  
+  [Eloy Durán](https://github.com/alloy)
+  [Xcodeproj#216](https://github.com/CocoaPods/Xcodeproj/pull/216)
+
+* `NativeTarget` Make adding a target dependency O(1) constant speed.  
+  [Eloy Durán](https://github.com/alloy)
+  [Xcodeproj#216](https://github.com/CocoaPods/Xcodeproj/pull/216)
+
+* `Object` Cache an object's plist name, which is used very often during project
+  generation.  
+  [Eloy Durán](https://github.com/alloy)
+  [Xcodeproj#216](https://github.com/CocoaPods/Xcodeproj/pull/216)
+
+###### Bug Fixes
+
+* `CoreFoundation` Hopefully fix a Ruby constant lookup issue. We have been
+  unable to reproduce this, but since more than one person has reported it,
+  we're including this fix in the hope it fixes this esoteric issue.  
+  [Eloy Durán](https://github.com/alloy)
+  [CocoaPods#2632](https://github.com/CocoaPods/CocoaPods/issues/2632)
+  [CocoaPods#2739](https://github.com/CocoaPods/CocoaPods/issues/2739)
+
+
+## 0.20.0
+
+###### Breaking
+
+* Support for Ruby < 2.0.0 has been dropped. Xcodeproj now depends on
+  Ruby 2.0.0 or greater.  
+  [Kyle Fuller](https://github.com/kylef)
+
+
+###### Enhancements
+
+* `Project`: Recognize merge conflicts and raise a helpful error.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#192](https://github.com/CocoaPods/Xcodeproj/pull/192)
+
+* `PBXContainerItemProxy`: Allow access to the proxied object.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#178](https://github.com/CocoaPods/Xcodeproj/pull/178)
+
+
+###### Minor Enhancements
+
+* `PBXCopyFilesBuildPhase`: Add a convenience method `symbol_dst_subfolder_spec`
+  to set the destination subfolder specification by a symbol.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#187](https://github.com/CocoaPods/Xcodeproj/pull/187)
+
+* `PBXNativeTarget`: Return newly created build files by `add_file_references`
+  and yield each one to allow direct modification of its settigs.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#187](https://github.com/CocoaPods/Xcodeproj/pull/187)
+
+
+###### Bug Fixes
+
+* `PBXNativeTarget`: Fixed the creation of target dependencies, which refer
+  to subprojects.  
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#178](https://github.com/CocoaPods/Xcodeproj/pull/178)
+
+* `PBXReferenceProxy`: Added the missing attribute name, which could appear when
+  external frameworks are referenced.
+  [Marius Rackwitz](https://github.com/mrackwitz)
+  [Xcodeproj#189](https://github.com/CocoaPods/Xcodeproj/pull/189)
+
+
 ## 0.19.4
 
 ###### Bug Fixes
@@ -112,6 +302,7 @@
   [Alessandro Orrù](https://github.com/alessandroorru)
   [Xcodeproj#155](https://github.com/CocoaPods/Xcodeproj/pull/155)
 
+
 ## 0.17.0
 
 ###### Enhancements
@@ -120,6 +311,7 @@
   [Kyle Fuller](https://github.com/kylef)
   [Fabio Pelosin](https://github.com/fabiopelosin)
   [Xcodeproj#105](https://github.com/CocoaPods/Xcodeproj/pull/150)
+
 
 ## 0.16.1
 
@@ -132,6 +324,7 @@
 
 * [Xcodeproj::Project#reference_for_path] Support for string parameter.  
   [jlj](https://github.com/jlj)
+
 
 ## 0.16.0
 
@@ -429,6 +622,7 @@
 * Build configurations are now deeply copied.
   [CocoaPods/CocoaPods#1288](https://github.com/CocoaPods/CocoaPods/issues/1322),
 
+
 ## 0.10.0
 
 ###### Breaking
@@ -502,4 +696,3 @@
 ###### Bug Fixes
 
 * The file type of the frameworks file references has be corrected.
-

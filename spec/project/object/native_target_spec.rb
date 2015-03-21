@@ -3,7 +3,6 @@ require File.expand_path('../../../spec_helper', __FILE__)
 module ProjectSpecs
   describe AbstractTarget do
     describe 'In general' do
-
       before do
         @target = @project.new_target(:static_library, 'Pods', :ios)
       end
@@ -16,14 +15,32 @@ module ProjectSpecs
 
     #----------------------------------------#
 
-    describe 'Helpers' do
+    describe 'Creation' do
+      it 'inherits build configurations from the project similar to Xcode' do
+        @project.add_build_configuration('App Store', :release)
+        @target = @project.new_target(:static_library, 'Pods', :ios)
 
+        @project.build_configurations.map(&:name).sort.should == \
+          @target.build_configurations.map(&:name).sort
+      end
+
+      it 'uses default Release build configuration build settings for custom build configurations when adding a target' do
+        @project.add_build_configuration('App Store', :release)
+        target = @project.new_target(:static_library, 'Pods', :ios, '9.0', @project.products_group)
+
+        release_settings = Xcodeproj::Project::ProjectHelper.common_build_settings(:release, :ios, '9.0', :static_library)
+        target.build_settings('App Store').should == release_settings
+      end
+    end
+
+    #----------------------------------------#
+
+    describe 'Helpers' do
       before do
         @target = @project.new_target(:static_library, 'Pods', :ios)
       end
 
       describe '#common_resolved_build_setting' do
-
         it 'returns the resolved build setting for the given key as indicated in the target build configuration' do
           @project.build_configuration_list.set_setting('ARCHS', nil)
           @target.build_configuration_list.set_setting('ARCHS', 'VALID_ARCHS')
@@ -41,13 +58,11 @@ module ProjectSpecs
           @target.build_configuration_list.set_setting('ARCHS', 'arm64')
           @target.resolved_build_setting('ARCHS').should == { 'Release' => 'arm64', 'Debug' => 'arm64' }
         end
-
       end
 
       #----------------------------------------#
 
       describe '#common_resolved_build_setting' do
-
         it 'returns the common resolved build setting for the given key as indicated in the target build configuration' do
           @project.build_configuration_list.set_setting('ARCHS', nil)
           @target.build_configuration_list.set_setting('ARCHS', 'VALID_ARCHS')
@@ -74,9 +89,7 @@ module ProjectSpecs
           should.not.raise do
             @target.common_resolved_build_setting('ARCHS')
           end
-
         end
-
       end
 
       #----------------------------------------#
@@ -111,19 +124,32 @@ module ProjectSpecs
         t2.sdk_version.should == '10.8'
       end
 
-      it 'returns the deployment target specified in its build configuration' do
-        @project.build_configuration_list.set_setting('IPHONEOS_DEPLOYMENT_TARGET', nil)
-        @project.build_configuration_list.set_setting('MACOSX_DEPLOYMENT_TARGET', nil)
-        @project.new_target(:static_library, 'Pods', :ios).deployment_target.should == '4.3'
-        @project.new_target(:static_library, 'Pods', :osx).deployment_target.should == '10.7'
+      describe 'returns the deployment target specified in its build configuration' do
+        it 'works for iOS' do
+          @project.build_configuration_list.set_setting('IPHONEOS_DEPLOYMENT_TARGET', nil)
+          @project.new_target(:static_library, 'Pods', :ios, '4.3').deployment_target.should == '4.3'
+        end
+
+        it 'works for OSX' do
+          @project.build_configuration_list.set_setting('MACOSX_DEPLOYMENT_TARGET', nil)
+          @project.new_target(:static_library, 'Pods', :osx, '10.7').deployment_target.should == '10.7'
+        end
       end
 
-      it 'returns the deployment target' do
-        @project.build_configuration_list.set_setting('IPHONEOS_DEPLOYMENT_TARGET', '4.3')
-        @project.build_configuration_list.set_setting('MACOSX_DEPLOYMENT_TARGET', '10.7')
-        mac_target = @project.new_target(:static_library, 'Pods', :ios)
-        mac_target.build_configurations.first.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = nil
-        mac_target.deployment_target.should == '4.3'
+      describe 'returns the deployment target of the project build configuration' do
+        it 'works for iOS' do
+          @project.build_configuration_list.set_setting('IPHONEOS_DEPLOYMENT_TARGET', '4.3')
+          ios_target = @project.new_target(:static_library, 'Pods', :ios)
+          ios_target.build_configurations.first.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = nil
+          ios_target.deployment_target.should == '4.3'
+        end
+
+        it 'works for OSX' do
+          @project.build_configuration_list.set_setting('MACOSX_DEPLOYMENT_TARGET', '10.7')
+          osx_target = @project.new_target(:static_library, 'Pods', :osx)
+          osx_target.build_configurations.first.build_settings['MACOSX_DEPLOYMENT_TARGET'] = nil
+          osx_target.deployment_target.should == '10.7'
+        end
       end
 
       it 'returns the build configuration' do
@@ -135,15 +161,9 @@ module ProjectSpecs
       #----------------------------------------#
 
       describe '#add_build_configuration' do
-
         it 'adds a new build configuration' do
           @target.add_build_configuration('App Store', :release)
           @target.build_configurations.map(&:name).sort.should == ['App Store', 'Debug', 'Release']
-        end
-
-        it 'configures new build configurations according to the given type' do
-          @target.add_build_configuration('App Store', :release)
-          @target.build_settings('App Store')['OTHER_CFLAGS'].should == ['-DNS_BLOCK_ASSERTIONS=1', '$(inherited)']
         end
 
         it "doesn't duplicate build configurations with existing names" do
@@ -162,7 +182,6 @@ module ProjectSpecs
           conf_2 = @target.add_build_configuration('App Store', :release)
           conf_1.object_id.should == conf_2.object_id
         end
-
       end
 
       #----------------------------------------#
@@ -172,6 +191,7 @@ module ProjectSpecs
       end
 
       describe '#add_dependency' do
+        extend SpecHelper::TemporaryDirectory
 
         it 'adds a dependency on another target' do
           dependency_target = @project.new_target(:static_library, 'Pods-SMCalloutView', :ios)
@@ -195,9 +215,18 @@ module ProjectSpecs
 
           @target.dependencies.count.should == 1
           target_dependency = @target.dependencies.first
-          target_dependency.target.should == dependency_target
+          target_dependency.target.should.be.nil
 
-          target_dependency.target_proxy.container_portal.should == subproject_file_reference.uuid
+          container_proxy = target_dependency.target_proxy
+          container_proxy.container_portal.should == subproject_file_reference.uuid
+          container_proxy.remote_global_id_string.should == dependency_target.uuid
+
+          # Regression test: Ensure that we can open the modified project
+          # without attempting to initialize an object with an unknown UUID
+          Xcodeproj::UI.stubs(:warn).never
+          temp_path = temporary_directory + 'ProjectWithTargetDependencyToSubproject.xcodeproj'
+          @project.save(temp_path)
+          Xcodeproj::Project.open(temp_path)
         end
 
         it "doesn't add a dependency on a target in an unknown project" do
@@ -214,6 +243,26 @@ module ProjectSpecs
           @target.add_dependency(dependency_target)
           @target.add_dependency(dependency_target)
           @target.dependencies.count.should == 1
+        end
+      end
+
+      describe '#dependency_for_target' do
+        before do
+          subproject_path = fixture_path('Sample Project/ReferencedProject/ReferencedProject.xcodeproj')
+          @subproject = Xcodeproj::Project.open(subproject_path)
+
+          project_path = fixture_path('Sample Project/ContainsSubproject/ContainsSubproject.xcodeproj')
+          @project = Xcodeproj::Project.open(project_path)
+        end
+
+        it 'returns the dependency for targets from the current project' do
+          @target = @project.targets.find { |t| t.name == 'ContainsSubprojectTests' }
+          @target.dependency_for_target(@project.targets.first).should == @target.dependencies.first
+        end
+
+        it 'returns the dependency for targets from a subproject' do
+          @target = @project.targets.first
+          @target.dependency_for_target(@subproject.targets.first).should == @target.dependencies.first
         end
       end
     end
@@ -235,7 +284,6 @@ module ProjectSpecs
         :copy_files_build_phases   => PBXCopyFilesBuildPhase,
         :shell_script_build_phases => PBXShellScriptBuildPhase,
       }.each do |association_method, klass|
-
         it "returns an empty #{klass.isa}" do
           phase = @target.send(association_method)
           if phase.is_a? Array
@@ -271,7 +319,6 @@ module ProjectSpecs
     #----------------------------------------#
 
     describe 'System frameworks' do
-
       before do
         @target = @project.new_target(:static_library, 'Pods', :ios)
         @target.frameworks_build_phase.clear
@@ -279,7 +326,6 @@ module ProjectSpecs
       end
 
       describe '#add_system_framework' do
-
         it 'adds a file reference for a system framework, in a dedicated subgroup of the Frameworks group' do
           @target.add_system_framework('QuartzCore')
           file = @project['Frameworks/iOS'].files.first
@@ -328,7 +374,6 @@ module ProjectSpecs
       #----------------------------------------#
 
       describe '#add_system_library' do
-
         it 'adds a file reference for a system framework, to the Frameworks group' do
           @target.add_system_library('xml')
           file = @project['Frameworks'].files.first
@@ -359,13 +404,11 @@ module ProjectSpecs
           names.should == ['libz.dylib', 'libxml.dylib']
         end
       end
-
     end
 
     #----------------------------------------#
 
     describe 'AbstractObject Hooks' do
-
       before do
         @target = @project.new_target(:static_library, 'Pods', :ios)
       end
@@ -385,9 +428,7 @@ module ProjectSpecs
   #---------------------------------------------------------------------------#
 
   describe PBXNativeTarget do
-
     describe 'In general' do
-
       before do
         @target = @project.new_target(:static_library, 'Pods', :ios)
       end
@@ -412,7 +453,6 @@ module ProjectSpecs
       end
 
       describe '#sort' do
-
         it 'can be sorted' do
           dep_2 = @project.new_target(:static_library, 'Dep_2', :ios)
           dep_1 = @project.new_target(:static_library, 'Dep_1', :ios)
@@ -435,7 +475,6 @@ module ProjectSpecs
     #----------------------------------------#
 
     describe 'Helpers' do
-
       before do
         @target = @project.new_target(:static_library, 'Pods', :ios)
       end
@@ -451,7 +490,7 @@ module ProjectSpecs
         end
       end
 
-      it 'adds a list of sources file to the target to the source build phase' do
+      it 'adds a list of source files to the target to the source build phase' do
         ref = @project.main_group.new_file('Class.m')
         @target.add_file_references([ref], '-fobjc-arc')
         build_files = @target.source_build_phase.files
@@ -460,13 +499,38 @@ module ProjectSpecs
         build_files.first.settings.should == { 'COMPILER_FLAGS' => '-fobjc-arc' }
       end
 
-      it 'adds a list of headers file to the target header build phases' do
+      it 'adds a list of header files to the target header build phases' do
         ref = @project.main_group.new_file('Class.h')
         @target.add_file_references([ref], '-fobjc-arc')
         build_files = @target.headers_build_phase.files
         build_files.count.should == 1
         build_files.first.file_ref.path.should == 'Class.h'
         build_files.first.settings.should.be.nil
+      end
+
+      it 'adds a list of header files with capitalized .H extension to the target header build phases' do
+        ref = @project.main_group.new_file('CLASS.H')
+        @target.add_file_references([ref], '-fobjc-arc')
+        build_files = @target.headers_build_phase.files
+        build_files.count.should == 1
+        build_files.first.file_ref.path.should == 'CLASS.H'
+        build_files.first.settings.should.be.nil
+      end
+
+      it 'returns a list of header files to the target header build phases' do
+        ref = @project.main_group.new_file('Class.h')
+        new_build_files = @target.add_file_references([ref], '-fobjc-arc')
+        build_files = @target.headers_build_phase.files
+        new_build_files.should == build_files
+      end
+
+      it 'yields a list of header files to the target header build phases' do
+        ref = @project.main_group.new_file('Class.h')
+        build_files = @target.add_file_references([ref], '-fobjc-arc') do |build_file|
+          build_file.should.be.an.instance_of?(PBXBuildFile)
+          build_file.settings = { 'ATTRIBUTES' => ['Public'] }
+        end
+        build_files.first.settings.should == { 'ATTRIBUTES' => ['Public'] }
       end
 
       it 'adds a list of resources to the resources build phase' do
@@ -477,9 +541,7 @@ module ProjectSpecs
         build_files.first.file_ref.path.should == 'Image.png'
         build_files.first.settings.should.be.nil
       end
-
     end
-
   end
 
   #---------------------------------------------------------------------------#

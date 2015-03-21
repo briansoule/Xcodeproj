@@ -7,7 +7,6 @@ end
 
 module ProjectSpecs
   describe Xcodeproj::XCScheme do
-
     before do
       @project.stubs(:path).returns(Pathname.new('path/Cocoa Application.xcodeproj'))
     end
@@ -15,7 +14,6 @@ module ProjectSpecs
     #-------------------------------------------------------------------------#
 
     describe 'Serialization' do
-
       before do
         app = @project.new_target(:application, 'iOS application', :osx)
         @scheme = Xcodeproj::XCScheme.new
@@ -26,26 +24,23 @@ module ProjectSpecs
         @scheme.to_s.lines.first.chomp.should == '<?xml version="1.0" encoding="UTF-8"?>'
       end
 
-      if RUBY_VERSION > '1.8.7'
-        it 'indents the string representation as Xcode' do
-          require 'active_support/core_ext/string/strip.rb'
-          @scheme.to_s[0..190].should == <<-DOC.strip_heredoc
-          <?xml version="1.0" encoding="UTF-8"?>
-          <Scheme
-             LastUpgradeVersion = "0510"
-             version = "1.3">
-             <BuildAction
-                parallelizeBuildables = "YES"
-                buildImplicitDependencies = "YES">
-          DOC
-        end
+      it 'indents the string representation as Xcode' do
+        require 'active_support/core_ext/string/strip.rb'
+        @scheme.to_s[0..190].should == <<-DOC.strip_heredoc
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Scheme
+           LastUpgradeVersion = "0510"
+           version = "1.3">
+           <BuildAction
+              parallelizeBuildables = "YES"
+              buildImplicitDependencies = "YES">
+        DOC
       end
     end
 
     #-------------------------------------------------------------------------#
 
     describe 'Share a User Scheme' do
-
       extend SpecHelper::TemporaryDirectory
 
       before do
@@ -71,11 +66,9 @@ module ProjectSpecs
         File.exist?(File.join(temporary_directory, 'Cocoa Application.xcodeproj', 'xcuserdata', 'fabio.xcuserdatad', 'xcschemes', 'Cocoa ApplicationImporter.xcscheme')).should.be.false
         File.exist?(File.join(temporary_directory, 'Cocoa Application.xcodeproj', 'xcuserdata', 'fabio.xcuserdatad', 'xcschemes', 'iOS application.xcscheme')).should.be.false
       end
-
     end
 
     describe 'Creating a Shared Scheme' do
-
       before do
         @ios_application = @project.new_target(:application, 'iOS application', :osx)
         @ios_application.stubs(:uuid).returns('E52523F316245AB20012E2BA')
@@ -130,7 +123,6 @@ module ProjectSpecs
       end
 
       describe 'For iOS Application' do
-
         before do
           @scheme.add_build_target(@ios_application)
           @scheme.add_test_target(@ios_application_tests)
@@ -153,31 +145,31 @@ module ProjectSpecs
         it 'Scheme > BuildAction > BuildActionEntries' do
           compare_elements \
             @xml.root.elements['BuildAction'] \
-            .elements['BuildActionEntries'], \
+              .elements['BuildActionEntries'], \
             @scheme.doc.root.elements['BuildAction'] \
-            .elements['BuildActionEntries']
+              .elements['BuildActionEntries']
         end
 
         it 'Scheme > BuildAction > BuildActionEntries > BuildActionEntry' do
           compare_elements \
             @xml.root.elements['BuildAction'] \
-            .elements['BuildActionEntries'] \
-            .elements['BuildActionEntry'], \
+              .elements['BuildActionEntries'] \
+              .elements['BuildActionEntry'], \
             @scheme.doc.root.elements['BuildAction'] \
-            .elements['BuildActionEntries'] \
-            .elements['BuildActionEntry']
+              .elements['BuildActionEntries'] \
+              .elements['BuildActionEntry']
         end
 
         it 'Scheme > BuildAction > BuildActionEntries > BuildActionEntry > BuildableReference' do
           compare_elements \
             @xml.root.elements['BuildAction'] \
-            .elements['BuildActionEntries'] \
-            .elements['BuildActionEntry'] \
-            .elements['BuildableReference'], \
+              .elements['BuildActionEntries'] \
+              .elements['BuildActionEntry'] \
+              .elements['BuildableReference'], \
             @scheme.doc.root.elements['BuildAction'] \
-            .elements['BuildActionEntries'] \
-            .elements['BuildActionEntry'] \
-            .elements['BuildableReference']
+              .elements['BuildActionEntries'] \
+              .elements['BuildActionEntry'] \
+              .elements['BuildableReference']
         end
 
         it 'Scheme > TestAction' do
@@ -187,49 +179,49 @@ module ProjectSpecs
         it 'Scheme > TestAction > Testables' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'], \
+              .elements['Testables'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables']
+              .elements['Testables']
         end
 
         it 'Scheme > TestAction > Testables > TestableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'], \
+              .elements['Testables'] \
+              .elements['TestableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference']
+              .elements['Testables'] \
+              .elements['TestableReference']
         end
 
         it 'Scheme > TestAction > Testables > TestableReference > BuildableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'] \
-            .elements['BuildableReference'], \
+              .elements['Testables'] \
+              .elements['TestableReference'] \
+              .elements['BuildableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'] \
-            .elements['BuildableReference']
+              .elements['Testables'] \
+              .elements['TestableReference'] \
+              .elements['BuildableReference']
         end
 
         it 'Scheme > TestAction > MacroExpansion' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['MacroExpansion'], \
+              .elements['MacroExpansion'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['MacroExpansion']
+              .elements['MacroExpansion']
         end
 
         it 'Scheme > TestAction > MacroExpansion > BuildableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['MacroExpansion'] \
-            .elements['BuildableReference'], \
+              .elements['MacroExpansion'] \
+              .elements['BuildableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['MacroExpansion'] \
-            .elements['BuildableReference']
+              .elements['MacroExpansion'] \
+              .elements['BuildableReference']
         end
 
         it 'Scheme > LaunchAction' do
@@ -239,27 +231,27 @@ module ProjectSpecs
         it 'Scheme > LaunchAction > BuildableProductRunnable' do
           compare_elements \
             @xml.root.elements['LaunchAction'] \
-            .elements['BuildableProductRunnable'], \
+              .elements['BuildableProductRunnable'], \
             @scheme.doc.root.elements['LaunchAction'] \
-            .elements['BuildableProductRunnable']
+              .elements['BuildableProductRunnable']
         end
 
         it 'Scheme > LaunchAction > BuildableProductRunnable > BuildableReference' do
           compare_elements \
             @xml.root.elements['LaunchAction'] \
-            .elements['BuildableProductRunnable'] \
-            .elements['BuildableReference'], \
+              .elements['BuildableProductRunnable'] \
+              .elements['BuildableReference'], \
             @scheme.doc.root.elements['LaunchAction'] \
-            .elements['BuildableProductRunnable'] \
-            .elements['BuildableReference']
+              .elements['BuildableProductRunnable'] \
+              .elements['BuildableReference']
         end
 
         it 'Scheme > LaunchAction > AdditionalOptions' do
           compare_elements \
             @xml.root.elements['LaunchAction'] \
-            .elements['AdditionalOptions'], \
+              .elements['AdditionalOptions'], \
             @scheme.doc.root.elements['LaunchAction'] \
-            .elements['AdditionalOptions']
+              .elements['AdditionalOptions']
         end
 
         it 'Scheme > ProfileAction' do
@@ -270,7 +262,7 @@ module ProjectSpecs
           compare_elements @xml.root.elements['ProfileAction'] \
             .elements['BuildableProductRunnable'], \
                            @scheme.doc.root.elements['ProfileAction'] \
-                           .elements['BuildableProductRunnable']
+                             .elements['BuildableProductRunnable']
         end
 
         it 'Scheme > ProfileAction > BuildableProductRunnable > BuildableReference' do
@@ -278,8 +270,8 @@ module ProjectSpecs
             .elements['BuildableProductRunnable'] \
             .elements['BuildableReference'], \
                            @scheme.doc.root.elements['ProfileAction'] \
-                           .elements['BuildableProductRunnable'] \
-                           .elements['BuildableReference']
+                             .elements['BuildableProductRunnable'] \
+                             .elements['BuildableReference']
         end
 
         it 'Scheme > AnalyzeAction' do
@@ -289,11 +281,9 @@ module ProjectSpecs
         it 'Scheme > ArchiveAction' do
           compare_elements @xml.root.elements['ArchiveAction'], @scheme.doc.root.elements['ArchiveAction']
         end
-
       end
 
       describe 'For iOS Application Tests' do
-
         before do
           @scheme.add_test_target(@ios_application_tests)
           @xml = REXML::Document.new File.new fixture_path('Sample Project/Cocoa Application.xcodeproj/xcshareddata/xcschemes/iOS applicationTests.xcscheme')
@@ -318,31 +308,31 @@ module ProjectSpecs
         it 'Scheme > TestAction > Testables' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'], \
+              .elements['Testables'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables']
+              .elements['Testables']
         end
 
         it 'Scheme > TestAction > Testables > TestableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'], \
+              .elements['Testables'] \
+              .elements['TestableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference']
+              .elements['Testables'] \
+              .elements['TestableReference']
         end
 
         it 'Scheme > TestAction > Testables > TestableReference > BuildableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'] \
-            .elements['BuildableReference'], \
+              .elements['Testables'] \
+              .elements['TestableReference'] \
+              .elements['BuildableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'] \
-            .elements['BuildableReference']
+              .elements['Testables'] \
+              .elements['TestableReference'] \
+              .elements['BuildableReference']
         end
 
         it 'Scheme > LaunchAction' do
@@ -352,9 +342,9 @@ module ProjectSpecs
         it 'Scheme > LaunchAction > AdditionalOptions' do
           compare_elements \
             @xml.root.elements['LaunchAction'] \
-            .elements['AdditionalOptions'], \
+              .elements['AdditionalOptions'], \
             @scheme.doc.root.elements['LaunchAction'] \
-            .elements['AdditionalOptions']
+              .elements['AdditionalOptions']
         end
 
         it 'Scheme > ProfileAction' do
@@ -368,13 +358,11 @@ module ProjectSpecs
         it 'Scheme > ArchiveAction' do
           compare_elements @xml.root.elements['ArchiveAction'], @scheme.doc.root.elements['ArchiveAction']
         end
-
       end
 
       #-------------------------------------------------------------------------#
 
       describe 'For iOS Application Tests (Set Build Target For Running)' do
-
         extend SpecHelper::TemporaryDirectory
 
         before do
@@ -402,31 +390,31 @@ module ProjectSpecs
         it 'Scheme > TestAction > Testables' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'], \
+              .elements['Testables'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables']
+              .elements['Testables']
         end
 
         it 'Scheme > TestAction > Testables > TestableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'], \
+              .elements['Testables'] \
+              .elements['TestableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference']
+              .elements['Testables'] \
+              .elements['TestableReference']
         end
 
         it 'Scheme > TestAction > Testables > TestableReference > BuildableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'] \
-            .elements['BuildableReference'], \
+              .elements['Testables'] \
+              .elements['TestableReference'] \
+              .elements['BuildableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'] \
-            .elements['BuildableReference']
+              .elements['Testables'] \
+              .elements['TestableReference'] \
+              .elements['BuildableReference']
         end
 
         it 'Scheme > LaunchAction' do
@@ -436,9 +424,9 @@ module ProjectSpecs
         it 'Scheme > LaunchAction > AdditionalOptions' do
           compare_elements \
             @xml.root.elements['LaunchAction'] \
-            .elements['AdditionalOptions'], \
+              .elements['AdditionalOptions'], \
             @scheme.doc.root.elements['LaunchAction'] \
-            .elements['AdditionalOptions']
+              .elements['AdditionalOptions']
         end
 
         it 'Scheme > ProfileAction' do
@@ -464,13 +452,11 @@ module ProjectSpecs
           (result > 0).should.be.true
           File.exist?(File.join temporary_directory, 'xcuserdata', "#{ENV['USER']}.xcuserdatad", 'xcschemes', 'iOS applicationTests.xcscheme').should.be.true
         end
-
       end
 
       #-------------------------------------------------------------------------#
 
       describe 'For iOS Application And Static Library' do
-
         extend SpecHelper::TemporaryDirectory
 
         before do
@@ -501,31 +487,31 @@ module ProjectSpecs
         it 'Scheme > TestAction > Testables' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'], \
+              .elements['Testables'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables']
+              .elements['Testables']
         end
 
         it 'Scheme > TestAction > Testables > TestableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'], \
+              .elements['Testables'] \
+              .elements['TestableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference']
+              .elements['Testables'] \
+              .elements['TestableReference']
         end
 
         it 'Scheme > TestAction > Testables > TestableReference > BuildableReference' do
           compare_elements \
             @xml.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'] \
-            .elements['BuildableReference'], \
+              .elements['Testables'] \
+              .elements['TestableReference'] \
+              .elements['BuildableReference'], \
             @scheme.doc.root.elements['TestAction'] \
-            .elements['Testables'] \
-            .elements['TestableReference'] \
-            .elements['BuildableReference']
+              .elements['Testables'] \
+              .elements['TestableReference'] \
+              .elements['BuildableReference']
         end
 
         it 'Scheme > LaunchAction' do
@@ -535,9 +521,9 @@ module ProjectSpecs
         it 'Scheme > LaunchAction > AdditionalOptions' do
           compare_elements \
             @xml.root.elements['LaunchAction'] \
-            .elements['AdditionalOptions'], \
+              .elements['AdditionalOptions'], \
             @scheme.doc.root.elements['LaunchAction'] \
-            .elements['AdditionalOptions']
+              .elements['AdditionalOptions']
         end
 
         it 'Scheme > ProfileAction' do
@@ -563,11 +549,9 @@ module ProjectSpecs
           (result > 0).should.be.true
           File.exist?(File.join temporary_directory, 'xcuserdata', "#{ENV['USER']}.xcuserdatad", 'xcschemes', 'iOS applicationTests.xcscheme').should.be.true
         end
-
       end
     end
 
     #-------------------------------------------------------------------------#
-
   end
 end

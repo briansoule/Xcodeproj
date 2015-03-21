@@ -37,6 +37,7 @@ module Xcodeproj
         PBXProject
         PBXTargetDependency
         PBXReferenceProxy
+        AbstractTarget
       ),
 
       'AbstractBuildPhase' => %w(
@@ -59,10 +60,6 @@ module Xcodeproj
         PBXVariantGroup
       ),
     }.freeze
-
-    # @return [Array] The list of the super classes for each ISA.
-    #
-    ISAS_SUPER_CLASSES = %w(AbstractObject AbstractBuildPhase PBXGroup)
 
     # @return [Hash] The known file types corresponding to each extension.
     #
@@ -98,6 +95,9 @@ module Xcodeproj
       :static_library   => 'com.apple.product-type.library.static',
       :bundle           => 'com.apple.product-type.bundle',
       :unit_test_bundle => 'com.apple.product-type.bundle.unit-test',
+      :app_extension    => 'com.apple.product-type.app-extension',
+      :watch_app        => 'com.apple.product-type.application.watchapp',
+      :watch_extension  => 'com.apple.product-type.watchkit-extension',
     }.freeze
 
     # @return [Hash] The extensions or the various product UTIs.
@@ -115,49 +115,96 @@ module Xcodeproj
     #
     COMMON_BUILD_SETTINGS = {
       :all => {
-        'GCC_PRECOMPILE_PREFIX_HEADER'      => 'YES',
         'PRODUCT_NAME'                      => '$(TARGET_NAME)',
-        'SKIP_INSTALL'                      => 'YES',
-        'DSTROOT'                           => '/tmp/xcodeproj.dst',
-        'ALWAYS_SEARCH_USER_PATHS'          => 'NO',
-        'INSTALL_PATH'                      => '$(BUILT_PRODUCTS_DIR)',
-        'OTHER_LDFLAGS'                     => '',
-        'COPY_PHASE_STRIP'                  => 'YES',
+        'ENABLE_STRICT_OBJC_MSGSEND'        => 'YES',
       }.freeze,
-      :debug => {
-        'GCC_DYNAMIC_NO_PIC'                => 'NO',
-        'GCC_PREPROCESSOR_DEFINITIONS'      => ['DEBUG=1', '$(inherited)'],
-        'GCC_SYMBOLS_PRIVATE_EXTERN'        => 'NO',
-        'GCC_OPTIMIZATION_LEVEL'            => '0',
-        'COPY_PHASE_STRIP'                  => 'NO',
+      [:debug] => {
+        'MTL_ENABLE_DEBUG_INFO'             => 'YES',
       }.freeze,
-      :release => {
-        'OTHER_CFLAGS'                      => ['-DNS_BLOCK_ASSERTIONS=1', '$(inherited)'],
-        'OTHER_CPLUSPLUSFLAGS'              => ['-DNS_BLOCK_ASSERTIONS=1', '$(inherited)'],
+      [:release] => {
+        'MTL_ENABLE_DEBUG_INFO'             => 'NO',
       }.freeze,
-      :ios => {
-        'IPHONEOS_DEPLOYMENT_TARGET'        => '4.3',
-        'PUBLIC_HEADERS_FOLDER_PATH'        => '$(TARGET_NAME)',
+      [:ios] => {
         'SDKROOT'                           => 'iphoneos',
       }.freeze,
-      :osx => {
-        'GCC_ENABLE_OBJC_EXCEPTIONS'        => 'YES',
-        'GCC_VERSION'                       => 'com.apple.compilers.llvm.clang.1_0',
-        'MACOSX_DEPLOYMENT_TARGET'          => '10.7',
+      [:osx] => {
         'SDKROOT'                           => 'macosx',
-        'COMBINE_HIDPI_IMAGES'              => 'YES',
       }.freeze,
-      [:osx, :debug] => {
+      [:debug, :osx] => {
         # Empty?
       }.freeze,
-      [:osx, :release] => {
+      [:release, :osx] => {
         'DEBUG_INFORMATION_FORMAT'          => 'dwarf-with-dsym',
       }.freeze,
-      [:ios, :debug] => {
+      [:debug, :ios] => {
         # Empty?
       }.freeze,
-      [:ios, :release] => {
-        'VALIDATE_PRODUCT'                  => 'YES',
+      [:debug, :application, :swift] => {
+        'SWIFT_OPTIMIZATION_LEVEL'          => '-Onone',
+      }.freeze,
+      [:framework] => {
+        'VERSION_INFO_PREFIX'               => '',
+        'DYLIB_COMPATIBILITY_VERSION'       => '1',
+        'DEFINES_MODULE'                    => 'YES',
+        'DYLIB_INSTALL_NAME_BASE'           => '@rpath',
+        'CURRENT_PROJECT_VERSION'           => '1',
+        'VERSIONING_SYSTEM'                 => 'apple-generic',
+        'DYLIB_CURRENT_VERSION'             => '1',
+        'SKIP_INSTALL'                      => 'YES',
+        'INSTALL_PATH'                      => '$(LOCAL_LIBRARY_DIR)/Frameworks',
+      }.freeze,
+      [:ios, :framework] => {
+        'LD_RUNPATH_SEARCH_PATHS'           => ['$(inherited)', '@executable_path/Frameworks', '@loader_path/Frameworks'],
+        'CODE_SIGN_IDENTITY[sdk=iphoneos*]' => 'iPhone Developer',
+        'TARGETED_DEVICE_FAMILY'            => '1,2',
+      }.freeze,
+      [:osx, :framework] => {
+        'LD_RUNPATH_SEARCH_PATHS'           => ['$(inherited)', '@executable_path/../Frameworks', '@loader_path/Frameworks'],
+        'FRAMEWORK_VERSION'                 => 'A',
+        'COMBINE_HIDPI_IMAGES'              => 'YES',
+      }.freeze,
+      [:framework, :swift] => {
+        'DEFINES_MODULE'                    => 'YES',
+      }.freeze,
+      [:debug, :framework, :swift] => {
+        'SWIFT_OPTIMIZATION_LEVEL'          => '-Onone',
+      }.freeze,
+      [:osx, :static_library] => {
+        'EXECUTABLE_PREFIX'                 => 'lib',
+      }.freeze,
+      [:ios, :static_library] => {
+        'OTHER_LDFLAGS'                     => '-ObjC',
+        'SKIP_INSTALL'                      => 'YES',
+      }.freeze,
+      [:osx, :dynamic_library] => {
+        'EXECUTABLE_PREFIX'                 => 'lib',
+        'DYLIB_COMPATIBILITY_VERSION'       => '1',
+        'DYLIB_CURRENT_VERSION'             => '1',
+      }.freeze,
+      [:application] => {
+        'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
+      }.freeze,
+      [:ios, :application] => {
+        'CODE_SIGN_IDENTITY[sdk=iphoneos*]' => 'iPhone Developer',
+        'LD_RUNPATH_SEARCH_PATHS'           => ['$(inherited)', '@executable_path/Frameworks'],
+      }.freeze,
+      [:osx, :application] => {
+        'COMBINE_HIDPI_IMAGES'              => 'YES',
+        'CODE_SIGN_IDENTITY'                => '-',
+        'LD_RUNPATH_SEARCH_PATHS'           => ['$(inherited)', '@executable_path/../Frameworks'],
+      }.freeze,
+      [:bundle] => {
+        'PRODUCT_NAME'                      => '$(TARGET_NAME)',
+        'WRAPPER_EXTENSION'                 => 'bundle',
+        'SKIP_INSTALL'                      => 'YES',
+      }.freeze,
+      [:ios, :bundle] => {
+        'SDKROOT'                           => 'iphoneos',
+      }.freeze,
+      [:osx, :bundle] => {
+        'COMBINE_HIDPI_IMAGES'              => 'YES',
+        'SDKROOT'                           => 'macosx',
+        'INSTALL_PATH'                      => '$(LOCAL_LIBRARY_DIR)/Bundles',
       }.freeze,
     }.freeze
 
@@ -165,38 +212,40 @@ module Xcodeproj
     #
     PROJECT_DEFAULT_BUILD_SETTINGS = {
       :all => {
-        'ALWAYS_SEARCH_USER_PATHS'         => 'NO',
-        'CLANG_CXX_LANGUAGE_STANDARD'      => 'gnu++0x',
-        'CLANG_CXX_LIBRARY'                => 'libc++',
-        'CLANG_ENABLE_OBJC_ARC'            => 'YES',
-        'CLANG_WARN_BOOL_CONVERSION'       => 'YES',
-        'CLANG_WARN_CONSTANT_CONVERSION'   => 'YES',
-        'CLANG_WARN_DIRECT_OBJC_ISA_USAGE' => 'YES',
-        'CLANG_WARN_EMPTY_BODY'            => 'YES',
-        'CLANG_WARN_ENUM_CONVERSION'       => 'YES',
-        'CLANG_WARN_INT_CONVERSION'        => 'YES',
-        'CLANG_WARN_OBJC_ROOT_CLASS'       => 'YES',
-        'CLANG_ENABLE_MODULES'             => 'YES',
-        'GCC_C_LANGUAGE_STANDARD'          => 'gnu99',
-        'GCC_WARN_64_TO_32_BIT_CONVERSION' => 'YES',
-        'GCC_WARN_ABOUT_RETURN_TYPE'       => 'YES',
-        'GCC_WARN_UNDECLARED_SELECTOR'     => 'YES',
-        'GCC_WARN_UNINITIALIZED_AUTOS'     => 'YES',
-        'GCC_WARN_UNUSED_FUNCTION'         => 'YES',
-        'GCC_WARN_UNUSED_VARIABLE'         => 'YES',
+        'ALWAYS_SEARCH_USER_PATHS'           => 'NO',
+        'CLANG_CXX_LANGUAGE_STANDARD'        => 'gnu++0x',
+        'CLANG_CXX_LIBRARY'                  => 'libc++',
+        'CLANG_ENABLE_OBJC_ARC'              => 'YES',
+        'CLANG_WARN_BOOL_CONVERSION'         => 'YES',
+        'CLANG_WARN_CONSTANT_CONVERSION'     => 'YES',
+        'CLANG_WARN_DIRECT_OBJC_ISA_USAGE'   => 'YES',
+        'CLANG_WARN__DUPLICATE_METHOD_MATCH' => 'YES',
+        'CLANG_WARN_EMPTY_BODY'              => 'YES',
+        'CLANG_WARN_ENUM_CONVERSION'         => 'YES',
+        'CLANG_WARN_INT_CONVERSION'          => 'YES',
+        'CLANG_WARN_OBJC_ROOT_CLASS'         => 'YES',
+        'CLANG_WARN_UNREACHABLE_CODE'        => 'YES',
+        'CLANG_ENABLE_MODULES'               => 'YES',
+        'GCC_C_LANGUAGE_STANDARD'            => 'gnu99',
+        'GCC_WARN_64_TO_32_BIT_CONVERSION'   => 'YES',
+        'GCC_WARN_ABOUT_RETURN_TYPE'         => 'YES',
+        'GCC_WARN_UNDECLARED_SELECTOR'       => 'YES',
+        'GCC_WARN_UNINITIALIZED_AUTOS'       => 'YES',
+        'GCC_WARN_UNUSED_FUNCTION'           => 'YES',
+        'GCC_WARN_UNUSED_VARIABLE'           => 'YES',
       },
       :release => {
-        'COPY_PHASE_STRIP'                 => 'NO',
-        'ENABLE_NS_ASSERTIONS'             => 'NO',
-        'VALIDATE_PRODUCT'                 => 'YES',
+        'COPY_PHASE_STRIP'                   => 'YES',
+        'ENABLE_NS_ASSERTIONS'               => 'NO',
+        'VALIDATE_PRODUCT'                   => 'YES',
       }.freeze,
       :debug => {
-        'ONLY_ACTIVE_ARCH'                 => 'YES',
-        'COPY_PHASE_STRIP'                 => 'YES',
-        'GCC_DYNAMIC_NO_PIC'               => 'NO',
-        'GCC_OPTIMIZATION_LEVEL'           => '0',
-        'GCC_PREPROCESSOR_DEFINITIONS'     => ['DEBUG=1', '$(inherited)'],
-        'GCC_SYMBOLS_PRIVATE_EXTERN'       => 'NO',
+        'ONLY_ACTIVE_ARCH'                   => 'YES',
+        'COPY_PHASE_STRIP'                   => 'NO',
+        'GCC_DYNAMIC_NO_PIC'                 => 'NO',
+        'GCC_OPTIMIZATION_LEVEL'             => '0',
+        'GCC_PREPROCESSOR_DEFINITIONS'       => ['DEBUG=1', '$(inherited)'],
+        'GCC_SYMBOLS_PRIVATE_EXTERN'         => 'NO',
       }.freeze,
     }.freeze
 
@@ -216,8 +265,15 @@ module Xcodeproj
       :plug_ins           => '13',
     }.freeze
 
-    # @return [Hash] The extensions which are associated with header files.
+    # @return [Hash] The corresponding numeric value of each proxy type for
+    #         PBXContainerItemProxy.
+    PROXY_TYPES = {
+      :native_target => '1',
+      :reference     => '2',
+    }.freeze
+
+    # @return [Array] The extensions which are associated with header files.
     #
-    HEADER_FILES_EXTENSIONS = %w(.h .hh .hpp .ipp).freeze
+    HEADER_FILES_EXTENSIONS = %w(.h .hh .hpp .ipp .tpp).freeze
   end
 end
